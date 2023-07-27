@@ -1,0 +1,33 @@
+#This is an example webapp.io configuration for Docker!
+FROM vm/ubuntu:18.04
+
+# To note: Layerfiles create entire VMs, *not* containers!
+SECRET ENV ENV_FILE
+
+# install the latest version of Docker, as in the official Docker installation tutorial.
+RUN apt-get update && \
+    apt-get install ca-certificates curl gnupg lsb-release && \
+    sudo mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
+    echo \
+    "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" |\
+    sudo tee /etc/apt/sources.list.d/docker.list > /dev/null && \
+    apt-get update && \
+    apt-get install docker-ce docker-ce-cli containerd.io
+# install & start k3s
+RUN curl -sfL https://get.k3s.io | INSTALL_K3S_VERSION=v1.21.2+k3s1 sh -s - --docker
+
+git clone https://github.com/3Kmfi6HP/argo-airport-paas paas
+
+RUN echo "$ENV_FILE" | base64 -d > ~/.env
+
+RUN cp paas/docker-compose.example.yml docker-compose.yml
+RUN cp paas/docker-compose.example-swarm.yml docker-compose.swarm.yml
+RUN cp paas/deploy.example.yaml deploy.yaml
+
+RUN systemctl restart k3s
+RUN kubectl create configmap config-env --from-env-file=.env
+
+RUN k3s kubectl apply -f deploy.yaml
+RUN REPEATABLE docker compose up -d
+EXPOSE WEBSITE localhost:3000
